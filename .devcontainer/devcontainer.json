@@ -1,0 +1,41 @@
+{
+    "name": "development",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "features": {
+        "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
+            "packages": "less,ssh,vim"
+        },
+        // "ghcr.io/devcontainers/features/common-utils:2": {
+        //     //"configureZshAsDefaultShell": true
+        //     //"installOhMyZsh": true
+        // },
+        "ghcr.io/devcontainers/features/git:1": {
+            "version": "latest",
+            "ppa": "false"
+        }
+    },
+    "remoteEnv": {
+        "CC": "clang-14",
+        "CXX": "clang++-14",
+        "CUDACXX": "/usr/local/cuda/bin/nvcc"
+        // "PATH": "/workspaces/lmdeploy/build/bin:/usr/local/go/bin:$PATH"
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode.cpptools",
+                "GitHub.copilot",
+                "ms-vscode.cpptools-extension-pack",
+				"ms-vscode.cmake-tools",
+                "aldijav.golangwithdidi",
+                "golang.go"
+            ]
+        }
+    },
+    "remoteUser": "vscode",
+    "runArgs":[
+        "--gpus", "all"
+    ]
+}

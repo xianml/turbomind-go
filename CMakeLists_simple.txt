@@ -1,0 +1,94 @@
+cmake_minimum_required(VERSION 3.18)
+
+project(turbomind-go 
+    VERSION 0.9.0
+    DESCRIPTION "Golang bindings for TurboMind inference engine"
+    LANGUAGES CXX
+)
+
+# Set C++ standard
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Build type
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
+endif()
+
+# Version and build info
+execute_process(
+    COMMAND git rev-parse --short HEAD
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_COMMIT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+
+if(NOT GIT_COMMIT)
+    set(GIT_COMMIT "unknown")
+endif()
+
+string(TIMESTAMP BUILD_TIME "%Y-%m-%d %H:%M:%S")
+
+# Include directories
+include_directories(
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+# Compiler flags
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -O3 -std=c++17")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG")
+
+# Source files - use simplified implementation
+set(SOURCES
+    src/turbomind_wrapper_impl.cpp
+)
+
+# Create shared library
+add_library(turbomind_go SHARED ${SOURCES})
+
+# Target properties
+set_target_properties(turbomind_go PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR}
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON
+)
+
+# Preprocessor definitions
+target_compile_definitions(turbomind_go PRIVATE
+    LMDEPLOY_VERSION="v${PROJECT_VERSION}"
+    GIT_COMMIT="${GIT_COMMIT}"
+    BUILD_TIME="${BUILD_TIME}"
+)
+
+# Link libraries
+target_link_libraries(turbomind_go
+    PRIVATE
+    pthread
+)
+
+# Install rules
+install(TARGETS turbomind_go
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    RUNTIME DESTINATION bin
+)
+
+install(FILES src/turbomind_wrapper.hpp
+    DESTINATION include
+)
+
+# Build information
+message(STATUS "Build configuration:")
+message(STATUS "  Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "  C++ standard: ${CMAKE_CXX_STANDARD}")
+message(STATUS "  Version: ${PROJECT_VERSION}")
+message(STATUS "  Git commit: ${GIT_COMMIT}")
+
+# Simple test target
+add_executable(test_wrapper cpp_test/simple_test.cpp)
+target_link_libraries(test_wrapper turbomind_go pthread)
+target_include_directories(test_wrapper PRIVATE ${CMAKE_SOURCE_DIR}/src) 

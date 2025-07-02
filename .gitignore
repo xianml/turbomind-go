@@ -1,0 +1,63 @@
+# Build artifacts
+build/
+dist/
+*.so
+*.a
+*.o
+*.dylib
+
+# LMDeploy third party
+third_party/
+
+# Go artifacts
+*.test
+*.out
+go.sum
+vendor/
+
+# Test artifacts
+test/models/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.dockerignore
+
+# Temporary files
+*.tmp
+*.temp
+
+# Python cache (from LMDeploy)
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# CUDA
+*.ptx
+*.cubin
+
+# Backup files
+*.bak
+*.orig
+
+# Environment files
+.env
+.env.local 
