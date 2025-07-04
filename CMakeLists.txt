@@ -27,7 +27,8 @@ execute_process(
 string(TIMESTAMP BUILD_TIME "%Y-%m-%d %H:%M:%S")
 
 # Find required packages
-find_package(CUDA REQUIRED)
+find_package(CUDA 12.0 REQUIRED)
+include_directories(${CUDA_INCLUDE_DIRS})
 
 # LMDeploy path configuration
 set(LMDEPLOY_ROOT "${CMAKE_SOURCE_DIR}/third_party/lmdeploy" CACHE PATH "Path to LMDeploy source")
@@ -40,12 +41,15 @@ endif()
 
 # Include directories
 include_directories(
-    ${CMAKE_SOURCE_DIR}/src
     ${LMDEPLOY_ROOT}/src
     ${LMDEPLOY_ROOT}/src/turbomind
     ${LMDEPLOY_ROOT}/3rdparty
     ${CUDA_INCLUDE_DIRS}
 )
+
+# Add LMDeploy include directories to handle all header reference styles
+include_directories(${LMDEPLOY_ROOT})
+include_directories(${LMDEPLOY_ROOT}/src)
 
 # Link directories
 link_directories(
@@ -74,23 +78,61 @@ add_definitions(
     -DCUDA_VERSION="${CUDA_VERSION_STRING}"
 )
 
-# Source files - Use hybrid implementation
+# Source files - real implementation
 set(SOURCES
-    src/turbomind_wrapper_hybrid.cpp
+    src/turbomind_wrapper_proper.cpp
 )
 
-# LMDeploy static libraries to link (selective linking for hybrid approach)
+# LMDeploy static libraries to link (actual built libraries)
+# Order matters for static linking - parser must come before libraries that use it
 set(LMDEPLOY_LIBRARIES
-    # Core libraries - essential ones only
+    # Core TurboMind libraries
+    Llama
+    LlamaTritonBackend
+    engine
     core
     logger
+    
+    # Layer components first
+    DynamicDecodeLayer
+    SamplingLayer
+    LogitsProcessorLayer
+    StopCriteriaLayer
+    
+    # Essential kernels
+    attention
+    unfused_attention_kernels
+    decoding_kernels
+    gpt_kernels
+    activation_kernels
+    quantization_kernels
+    rms_norm
+    logprob_kernels
+    
+    # Sampling and stopping
+    sampling_kernels
+    sampling_penalty_kernels
+    sampling_topk_kernels
+    sampling_topp_kernels
+    ban_bad_words
+    stop_criteria
+    
+    # Communication
+    device_comm
+    host_comm
+    cuda_ipc_comm
+    
+    # CUDA utilities
     cuda_utils
     memory_utils
+    nvtx_utils
+    anomaly_handler
     
-    # Optional libraries - will be linked if available
-    # Llama
-    # engine
-    # LlamaTritonBackend
+    # GEMM after parser (gemm2 uses parser functions)
+    gemm2
+    
+    # Parser library last (provides ParseArgsList, ParseListOrTuple)
+    parser
 )
 
 # Create shared library
@@ -103,26 +145,45 @@ set_target_properties(turbomind_go PROPERTIES
     VISIBILITY_INLINES_HIDDEN OFF
 )
 
-# Link libraries
+# Link libraries  
 target_link_libraries(turbomind_go PRIVATE
     ${LMDEPLOY_LIBRARIES}
     ${CUDA_LIBRARIES}
     ${CUDA_CUBLAS_LIBRARIES}
     ${CUDA_curand_LIBRARY}
+    cuda
     cudart
+    cublas
+    cublasLt
 )
 
-# Handle missing libraries gracefully
+# Link LMDeploy libraries for real implementation
 foreach(lib ${LMDEPLOY_LIBRARIES})
-    if(NOT TARGET ${lib})
-        find_library(${lib}_FOUND NAMES ${lib} lib${lib}.a PATHS ${LMDEPLOY_BUILD_DIR}/lib NO_DEFAULT_PATH)
-        if(${lib}_FOUND)
-            target_link_libraries(turbomind_go PRIVATE ${${lib}_FOUND})
-        else()
-            message(WARNING "Library ${lib} not found, skipping...")
-        endif()
+    find_library(${lib}_PATH 
+        NAMES lib${lib}.a ${lib} 
+        PATHS ${LMDEPLOY_BUILD_DIR}/lib 
+        NO_DEFAULT_PATH
+    )
+    if(${lib}_PATH)
+        target_link_libraries(turbomind_go PRIVATE ${${lib}_PATH})
+        message(STATUS "Linking library: ${${lib}_PATH}")
+    else()
+        message(WARNING "Required library ${lib} not found in ${LMDEPLOY_BUILD_DIR}/lib")
     endif()
 endforeach()
+
+# Link YAML library for real implementation
+find_library(YAML_CPP_PATH 
+    NAMES libyaml-cpp.a yaml-cpp
+    PATHS ${LMDEPLOY_BUILD_DIR}/_deps/yaml-cpp-build ${LMDEPLOY_BUILD_DIR}/lib
+    NO_DEFAULT_PATH
+)
+if(YAML_CPP_PATH)
+    target_link_libraries(turbomind_go PRIVATE ${YAML_CPP_PATH})
+    message(STATUS "Linking YAML library: ${YAML_CPP_PATH}")
+else()
+    message(WARNING "YAML library not found")
+endif()
 
 # Version information
 set_target_properties(turbomind_go PROPERTIES
